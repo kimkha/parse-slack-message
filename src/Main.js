@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
+import { getUrl } from './utils';
 
 class Main extends Component {
   state = {
@@ -8,10 +9,27 @@ class Main extends Component {
     end: '',
   };
 
+  constructor(props) {
+    super(props);
+
+    const newStart = this.parseUrl('start', localStorage.getItem('start'));
+    const newEnd = this.parseUrl('end', localStorage.getItem('end'));
+
+    this.state = {
+      token: localStorage.getItem('token'),
+      ...newStart, ...newEnd,
+    };
+
+    this.updateMessages();
+  }
+
   updateMessages = () => {
-    const { start_channel, start_time, end_time } = this.state;
+    const { start_channel, start_time, end_time, token } = this.state;
     if (start_channel && start_time > 0 && end_time >= start_time) {
-      console.log('OK');
+      let url = `https://slack.com/api/channels.history?token=${token}&channel=${start_channel}&oldest=${start_time-0.000001}&latest=${end_time+0.000001}`;
+      getUrl(url, data => {
+        console.log(data);
+      })
     }
   };
 
@@ -22,9 +40,9 @@ class Main extends Component {
       const re = /archives\/(\w+)\/p(\d+)/i;
       const found = value.match(re);
 
-      if (found.length > 2) {
+      if (found && found.length > 2) {
         map[`${key}_channel`] = found[1];
-        map[`${key}_time`] = Number(found[2]);
+        map[`${key}_time`] = Number(found[2])/1000000;
       }
 
       return map;
@@ -35,20 +53,24 @@ class Main extends Component {
   onChange = (newValue) => {
     if (newValue.start) {
       newValue = this.parseUrl('start', newValue.start);
+      localStorage.setItem('start', newValue.start);
     } else if (newValue.end) {
       newValue = this.parseUrl('end', newValue.end);
+      localStorage.setItem('end', newValue.end);
     }
     this.setState(newValue);
-    this.updateMessages();
+    setTimeout(this.updateMessages, 200);
   };
 
   onChangeToken = (event) => {
-    this.setState({token: event.target.value});
+    const token = event.target.value;
+    this.setState({token});
+    localStorage.setItem('token', token);
   };
 
   render() {
     const { children } = this.props;
-    const { token } = this.state;
+    const { token, start, end } = this.state;
 
     return (
       <div>
@@ -61,13 +83,13 @@ class Main extends Component {
         <div>
           <label>
             Range start (message URL):
-            <input onChange={event => this.onChange({start: event.target.value})}/>
+            <input value={start} onChange={event => this.onChange({start: event.target.value})}/>
           </label>
         </div>
         <div>
           <label>
             Range end (message URL):
-            <input onChange={event => this.onChange({end: event.target.value})}/>
+            <input value={end} onChange={event => this.onChange({end: event.target.value})}/>
           </label>
         </div>
       </div>
