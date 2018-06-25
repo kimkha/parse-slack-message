@@ -1,5 +1,5 @@
 
-export const getUrl = (url, callback) => {
+export const getUrl = (url) => {
   let req = new Request(url);
-  fetch(req).then(res => callback(res.json()));
+  return fetch(req).then(res => res.json());
 };

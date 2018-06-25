@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { getUrl } from './utils';
+import ListMessage from './ListMessage';
 
 class Main extends Component {
   state = {
@@ -16,6 +17,8 @@ class Main extends Component {
     const newEnd = this.parseUrl('end', localStorage.getItem('end'));
 
     this.state = {
+      messages: [],
+      users: null,
       token: localStorage.getItem('token'),
       ...newStart, ...newEnd,
     };
@@ -23,13 +26,38 @@ class Main extends Component {
     this.updateMessages();
   }
 
-  updateMessages = () => {
-    const { start_channel, start_time, end_time, token } = this.state;
-    if (start_channel && start_time > 0 && end_time >= start_time) {
-      let url = `https://slack.com/api/channels.history?token=${token}&channel=${start_channel}&oldest=${start_time-0.000001}&latest=${end_time+0.000001}`;
-      getUrl(url, data => {
+  fetchUsers = () => {
+    const { users, token } = this.state;
+    if (token && (!users || users.length <= 0)) {
+      const url = `https://slack.com/api/users.list?token=${token}`;
+      return getUrl(url).then(data => {
         console.log(data);
-      })
+        if (data && data.members) {
+          const users = data.members.reduce(function(map, obj) {
+            map[obj.id] = obj;
+            return map;
+          }, {});
+          this.setState({ users });
+        }
+      });
+    }
+    return null;
+  };
+
+  compareMessage = (a, b) => (a.ts - b.ts);
+
+  updateMessages = async () => {
+    const { start_channel, start_time, end_time, token } = this.state;
+    await this.fetchUsers();
+    if (token && start_channel && start_time > 0 && end_time >= start_time) {
+      let url = `https://slack.com/api/channels.history?token=${token}&channel=${start_channel}&oldest=${start_time-0.000001}&latest=${end_time+0.000001}`;
+      getUrl(url).then(data => {
+        console.log(data);
+        if (data && data.messages) {
+          const messages = data.messages.sort(this.compareMessage);
+          this.setState({messages});
+        }
+      });
     }
   };
 
@@ -70,7 +98,7 @@ class Main extends Component {
 
   render() {
     const { children } = this.props;
-    const { token, start, end } = this.state;
+    const { token, start, end, messages, users } = this.state;
 
     return (
       <div>
@@ -92,6 +120,8 @@ class Main extends Component {
             <input value={end} onChange={event => this.onChange({end: event.target.value})}/>
           </label>
         </div>
+
+        {messages && messages.length > 0 && <ListMessage data={messages} users={users} />}
       </div>
     );
   }
